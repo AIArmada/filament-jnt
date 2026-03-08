@@ -1,0 +1,88 @@
+<?php
+
+declare(strict_types=1);
+
+namespace AIArmada\FilamentJnt\Actions;
+
+use AIArmada\CommerceSupport\Support\OwnerContext;
+use AIArmada\Jnt\Models\JntOrder;
+use AIArmada\Jnt\Services\JntTrackingService;
+use Filament\Actions\Action;
+use Filament\Facades\Filament;
+use Filament\Notifications\Notification;
+use Filament\Support\Icons\Heroicon;
+use Throwable;
+
+final class SyncTrackingAction
+{
+    public static function make(): Action
+    {
+        return Action::make('syncTracking')
+            ->label('Sync Tracking')
+            ->icon(Heroicon::ArrowPath)
+            ->color('info')
+            ->requiresConfirmation()
+            ->authorize(fn (): bool => Filament::auth()?->check() ?? false)
+            ->modalHeading('Sync Tracking Information')
+            ->modalDescription('This will fetch the latest tracking information from J&T Express. Continue?')
+            ->modalSubmitActionLabel('Sync Now')
+            ->action(function (JntOrder $record): void {
+                if (Filament::auth()?->user() === null) {
+                    Notification::make()
+                        ->title('Authentication Required')
+                        ->body('Please sign in to sync tracking.')
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
+                if (! self::recordIsAccessible($record)) {
+                    Notification::make()
+                        ->title('Not Authorized')
+                        ->body('You do not have access to this shipping order.')
+                        ->danger()
+                        ->send();
+
+                    return;
+                }
+
+                try {
+                    $trackingService = app(JntTrackingService::class);
+                    $trackingService->syncOrderTracking($record);
+
+                    $record->refresh();
+
+                    Notification::make()
+                        ->title('Tracking Synced')
+                        ->body('Tracking information has been updated successfully.')
+                        ->success()
+                        ->send();
+                } catch (Throwable $e) {
+                    report($e);
+
+                    Notification::make()
+                        ->title('Sync Failed')
+                        ->body('Unable to sync tracking. Please try again or check logs.')
+                        ->danger()
+                        ->send();
+                }
+            })
+            ->visible(fn (JntOrder $record): bool => $record->tracking_number !== null);
+    }
+
+    private static function recordIsAccessible(JntOrder $record): bool
+    {
+        if (! config('jnt.owner.enabled', false)) {
+            return true;
+        }
+
+        $owner = OwnerContext::resolve();
+        $includeGlobal = (bool) config('jnt.owner.include_global', false);
+
+        return JntOrder::query()
+            ->forOwner($owner, $includeGlobal)
+            ->whereKey($record->getKey())
+            ->exists();
+    }
+}
