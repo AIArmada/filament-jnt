@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace AIArmada\FilamentJnt\Actions;
 
 use AIArmada\CommerceSupport\Support\OwnerContext;
+use AIArmada\CommerceSupport\Support\OwnerSignedDownload;
 use AIArmada\Jnt\Data\PrintWaybillData;
 use AIArmada\Jnt\Models\JntOrder;
 use AIArmada\Jnt\Services\JntExpressService;
@@ -14,8 +15,6 @@ use Filament\Notifications\Actions\Action as NotificationAction;
 use Filament\Notifications\Notification;
 use Filament\Support\Icons\Heroicon;
 use Illuminate\Database\Eloquent\Collection;
-use Illuminate\Support\Facades\Cache;
-use Illuminate\Support\Facades\URL;
 use Livewire\Component;
 use Throwable;
 
@@ -48,6 +47,7 @@ final class BulkPrintAwbAction extends BulkAction
                 }
 
                 $jntService = app(JntExpressService::class);
+                $owner = OwnerContext::resolve();
                 $labels = [];
                 $errors = [];
 
@@ -89,15 +89,28 @@ final class BulkPrintAwbAction extends BulkAction
                         }
 
                         if ($waybill->hasBase64Content()) {
-                            $cacheKey = "jnt_awb:{$record->order_id}";
-                            Cache::put($cacheKey, [
-                                'content' => base64_decode((string) $waybill->base64Content, true),
-                                'format' => 'pdf',
-                            ], now()->addMinutes(30));
+                            $pdfContent = $waybill->getPdfContent();
 
-                            $url = URL::signedRoute('jnt.awb.show', [
-                                'orderId' => $record->order_id,
-                            ], now()->addMinutes(30));
+                            if ($pdfContent === null) {
+                                $errors[] = "{$record->order_id}: invalid base64 waybill content";
+
+                                continue;
+                            }
+
+                            $url = OwnerSignedDownload::issueUrl(
+                                cachePrefix: 'jnt_awb',
+                                routeName: 'jnt.awb.show',
+                                routeParameters: ['orderId' => $record->order_id],
+                                payload: [
+                                    'content' => $pdfContent,
+                                    'format' => 'pdf',
+                                    'order_id' => $record->order_id,
+                                    'tracking_number' => $record->tracking_number,
+                                ],
+                                ttl: 1800,
+                                owner: $owner,
+                                userId: Filament::auth()?->id(),
+                            );
 
                             $labels[] = [
                                 'order_id' => $record->order_id,
@@ -127,7 +140,7 @@ final class BulkPrintAwbAction extends BulkAction
                 }
 
                 if (count($labels) === 1) {
-                    $livewire->js("window.open('{$labels[0]['url']}', '_blank')");
+                    $livewire->js('window.open(' . json_encode((string) $labels[0]['url']) . ', "_blank")');
 
                     Notification::make()
                         ->title('AWB Ready')
@@ -180,11 +193,14 @@ final class BulkPrintAwbAction extends BulkAction
             return true;
         }
 
+        if ($record->owner_type === null || $record->owner_id === null) {
+            return OwnerContext::isExplicitGlobal();
+        }
+
         $owner = OwnerContext::resolve();
-        $includeGlobal = (bool) config('jnt.owner.include_global', false);
 
         return JntOrder::query()
-            ->forOwner($owner, $includeGlobal)
+            ->forOwner($owner, false)
             ->whereKey($record->getKey())
             ->exists();
     }

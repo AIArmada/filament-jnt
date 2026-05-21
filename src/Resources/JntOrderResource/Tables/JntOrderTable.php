@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace AIArmada\FilamentJnt\Resources\JntOrderResource\Tables;
 
+use AIArmada\CommerceSupport\Support\MoneyFormatter;
 use AIArmada\FilamentJnt\Actions\BulkPrintAwbAction;
 use AIArmada\FilamentJnt\Actions\PrintAwbTableAction;
 use AIArmada\Jnt\Enums\TrackingStatus;
@@ -78,12 +79,12 @@ final class JntOrderTable
                     ->toggleable(),
                 TextColumn::make('package_value')
                     ->label('Value')
-                    ->money('MYR')
+                    ->formatStateUsing(fn ($state): ?string => blank($state) ? null : MoneyFormatter::formatMajor($state, 'MYR'))
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('cod_value')
                     ->label('COD')
-                    ->money('MYR')
+                    ->formatStateUsing(fn ($state): ?string => blank($state) ? null : MoneyFormatter::formatMajor($state, 'MYR'))
                     ->sortable()
                     ->toggleable(isToggledHiddenByDefault: true)
                     ->placeholder('—'),
@@ -178,10 +179,13 @@ final class JntOrderTable
 
     private static function getNormalizedStatus(JntOrder $order): TrackingStatus
     {
-        if ($order->last_status_code === null) {
+        if ($order->last_status_code === null && $order->last_status === null) {
             return TrackingStatus::Pending;
         }
 
-        return app(JntStatusMapper::class)->fromCode($order->last_status_code);
+        return app(JntStatusMapper::class)->resolve(
+            scanTypeCode: $order->last_status_code,
+            statusDescription: $order->last_status,
+        );
     }
 }
