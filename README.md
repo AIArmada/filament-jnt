@@ -123,15 +123,16 @@ Set to `null` to disable auto-polling.
 
 ## Documentation
 
-- [Configuration Reference](docs/configuration.md) – All configuration options
-- [Resources](docs/resources.md) – Available resources and customization
+- [Configuration Reference](docs/03-configuration.md) – All configuration options
+- [Usage](docs/04-usage.md) – Resources, actions, widgets, and customization
+- [Troubleshooting](docs/99-troubleshooting.md) – Common panel, polling, and owner-scope issues
 
 ---
 
 ## Requirements
 
 - PHP 8.4+
-- Laravel 12+
+- Laravel 13+
 - Filament 5.0+
 - aiarmada/jnt package
 
