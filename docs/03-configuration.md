@@ -92,18 +92,16 @@ return [
 **Example**:
 ```php
 'navigation' => [
-        'group' => 'Shipping',
-        'badge_color' => 'success',
-    ],
+    'group' => 'Shipping',
+    'badge_color' => 'success',
+],
 ```
-
-Available badge colors: `primary` (default), `success`, `warning`, `danger`, `info`, `gray`.
 
 ### Tables
 
 | Key | Type | Default | Description |
 |-----|------|---------|-------------|
-| `polling_interval` | `string` | `'30s'` | Auto-refresh interval. Set to `null` to disable polling, or a longer value such as `'60s'` / `'120s'` for low-traffic panels |
+| `polling_interval` | `string` | `'30s'` | Auto-refresh interval |
 | `tables.datetime_format` | `string` | `'Y-m-d H:i:s'` | Date/time format |
 
 **Example**:
@@ -207,13 +205,89 @@ JNT_OWNER_AUTO_ASSIGN=true
 ```
 
 The Filament resources automatically:
+- Filter queries by current tenant
+- Display badge counts per tenant
+- Cache widget stats per tenant
 
-- Filter queries by the owner resolved from `commerce-support` (`OwnerUiScope`), honouring `jnt.owner.include_global`
-- Display badge counts per owner, cached for 30–90 seconds by `NavigationBadgeHelper`
-- Cache dashboard widget stats per owner for 30–90 seconds
+---
 
-Filament tenancy is not a security boundary. Owner scoping comes from the core `jnt`
-package, and action handlers still revalidate the record against the current owner scope.
+## Polling Configuration
+
+Control how often tables auto-refresh:
+
+```php
+// Disable polling
+'polling_interval' => null,
+
+// Fast updates (high traffic)
+'polling_interval' => '10s',
+
+// Slow updates (low traffic)
+'polling_interval' => '120s',
+```
+
+---
+
+## Date Formats
+
+Customize date/time display:
+
+```php
+'tables' => [
+    // Full datetime
+    'datetime_format' => 'Y-m-d H:i:s',
+    
+    // Human-friendly
+    'datetime_format' => 'd M Y, H:i',
+    
+    // Date only
+    'datetime_format' => 'Y-m-d',
+    
+    // 12-hour format
+    'datetime_format' => 'd/m/Y h:i A',
+],
+```
+
+---
+
+## Badge Colors
+
+Available colors for navigation badges:
+
+- `primary` (default)
+- `success`
+- `warning`
+- `danger`
+- `info`
+- `gray`
+
+```php
+'navigation' => [
+    'badge_color' => 'info',
+],
+```
+
+---
+
+## Environment-Based Configuration
+
+Use environment variables for dynamic configuration:
+
+```php
+// config/filament-jnt.php
+return [
+    'features' => [
+        'webhook_logs' => env('FILAMENT_JNT_SHOW_WEBHOOKS', true),
+        'show_raw_payloads' => env('FILAMENT_JNT_DEBUG', false),
+    ],
+];
+```
+
+```env
+# .env
+FILAMENT_JNT_SHOW_WEBHOOKS=false  # Hide in production
+FILAMENT_JNT_DEBUG=true           # Enable in development
+```
 
 ---
 
